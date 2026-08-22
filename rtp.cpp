@@ -257,7 +257,6 @@ int satipRTP::Write(int fd, unsigned char *buffer, int size)
 		{
 			if( errno == EINTR )
 			{
-				DEBUG(MSG_MAIN, "WRITE : raise EINTR..continue.\n");
 				continue;
 			}
 

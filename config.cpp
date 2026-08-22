@@ -122,6 +122,7 @@ void satipConfig::clearProperty()
 	m_pls_code = 0;
 
 	clearPidList();
+	m_requested_pids.clear();
 
 	/* retune, everything we derived from the old transponder is void */
 	if (m_psi)
@@ -698,6 +699,7 @@ std::string satipConfig::getPlayData()
 	{
 		oss_data << getTuningData();
 		m_status = CONFIG_STATUS_CHANNEL_STABLE;
+		m_requested_pids.clear();
 	}
 
 	if (getPidStatus() == CONFIG_STATUS_PID_CHANGED)

@@ -411,6 +411,7 @@ void satipPSI::parsePMT(int pid, const unsigned char* sec, int len)
 		m_tuner_id, pid, program_number, info.version, version);
 
 	std::set<int> ecm_pids;
+	std::set<int> es_pids;
 
 	/* program level */
 	collectCaDescriptors(sec + pos, program_info_length, ecm_pids, "ECM");
@@ -419,6 +420,10 @@ void satipPSI::parsePMT(int pid, const unsigned char* sec, int len)
 	/* elementary stream level */
 	while (pos + 5 <= end)
 	{
+		int es_pid = ((sec[pos + 1] & 0x1f) << 8) | sec[pos + 2];
+		if (es_pid > 0 && es_pid < PSI_PID_NULL)
+			es_pids.insert(es_pid);
+
 		int es_info_length = ((sec[pos + 3] & 0x0f) << 8) | sec[pos + 4];
 		pos += 5;
 
@@ -430,6 +435,7 @@ void satipPSI::parsePMT(int pid, const unsigned char* sec, int len)
 	}
 
 	info.version = version;
+	info.es_pids = es_pids;
 
 	if (info.ecm_pids != ecm_pids)
 	{
@@ -490,21 +496,36 @@ void satipPSI::recompute()
 	}
 
 	/*
-	 * The pmt pids of the services enigma2 currently receives are exactly the
-	 * intersection of "pmt pids announced by the PAT" and "pids the kernel asked
-	 * for" - enigma2 always keeps a section filter open on the pmt of an active
-	 * service. This also covers parallel recordings and picture in picture.
+	 * A service is active if enigma2 requested its PMT PID or any of its
+	 * elementary stream PIDs (video, audio, etc.).
 	 */
 	for (std::set<int>::iterator it = m_pat_pmt_pids.begin(); it != m_pat_pmt_pids.end(); ++it)
 	{
-		if (m_joined_pids.find(*it) == m_joined_pids.end())
+		int pmt_pid = *it;
+		bool is_active = (m_joined_pids.find(pmt_pid) != m_joined_pids.end());
+
+		std::map<int, pmt_info>::iterator pmt = m_pmt.find(pmt_pid);
+		if (!is_active && pmt != m_pmt.end())
+		{
+			for (std::set<int>::iterator es = pmt->second.es_pids.begin(); es != pmt->second.es_pids.end(); ++es)
+			{
+				if (m_joined_pids.find(*es) != m_joined_pids.end())
+				{
+					is_active = true;
+					break;
+				}
+			}
+		}
+
+		/* Always watch known PMT PIDs to receive their table sections */
+		watched.insert(pmt_pid);
+
+		if (!is_active)
 			continue;
 
-		active.insert(*it);
-		watched.insert(*it);
-		derived.insert(*it);
+		active.insert(pmt_pid);
+		derived.insert(pmt_pid);
 
-		std::map<int, pmt_info>::iterator pmt = m_pmt.find(*it);
 		if (pmt != m_pmt.end())
 			derived.insert(pmt->second.ecm_pids.begin(), pmt->second.ecm_pids.end());
 	}

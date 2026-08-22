@@ -67,6 +67,7 @@ private:
 	{
 		int version;
 		std::set<int> ecm_pids;
+		std::set<int> es_pids;
 
 		pmt_info(): version(-1) {}
 	};
